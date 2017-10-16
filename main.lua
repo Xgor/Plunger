@@ -26,7 +26,7 @@ function CreatePlayfield()
 	for x=1,playfield.width do
 		playfield[x] = {}
 		for y=1,playfield.height do
-			playfield[x][y] = love.math.random(6)-1
+			playfield[x][y] = love.math.random(7)-1
 		end
 	end
 end
@@ -34,7 +34,7 @@ end
 function updatePlayfield()
 	local buffer = createBuffer()
 	for x=1,playfield.width do
-		for y=1,playfield.height do
+		for y=playfield.height,1,-1 do
 			 
 			if buffer[x][y] ~= 0 and playfield.height ~= y then
 				local xPathRight = 0
@@ -59,6 +59,7 @@ function updatePlayfield()
 			end
 		end
 	end
+	checkConnection()
 end
 
 function createBuffer()
@@ -80,29 +81,59 @@ end
 function checkConnection()
 	buffer = createBuffer()
 
-	connected = {}
-	connectionSize = 1
-
 	for x=1,playfield.width do
 		for y=1,playfield.height do
+			if buffer[x][y] ~= 0 then
 
+				connected = {}
+				connectionSize = 0
+				continueConnection(x,y,buffer[x][y])
+
+				if connectionSize > 2 then
+					for i=1,connectionSize do
+						-- NILL PROBLEM
+						destroyBall(connected[i].x,connected[i].y)
+					end
+				end
+
+			end
 		end
 	end
-
-	if connectionSize > 3 then
-		for i=1,connectionSize do
-			destroyBall(connected[i].x,connected[y].y)
-		end
-	end
-end
-
-function destroyBall(x,y)
-	playfield[x][y] = 0
 end
 
 function continueConnection(x,y,color)
-
+	if isInsideBounds(x,y) and buffer[x][y] == color then
+		local pos = {}
+		pos.x = x
+		pos.y = y
+		connectionSize = connectionSize+1
+		table.insert(connected, pos)
+		buffer[x][y] = 0
+		continueConnection(x-1,y,color)
+		continueConnection(x+1,y,color)
+		continueConnection(x,y+1,color)
+		continueConnection(x,y-1,color)
+		if y%2 == 0 then
+			continueConnection(x-1,y+1,color)
+			continueConnection(x-1,y-1,color)
+		else
+			continueConnection(x+1,y+1,color)
+			continueConnection(x+1,y-1,color)
+		end
+	end
 end
+function isInsideBounds(x,y)
+	return x ~= 0 and y ~= 0 and x <= playfield.width and y <= playfield.height
+end
+
+function destroyBall(x,y)
+	if isInsideBounds(x,y) then
+		playfield[x][y] = 0
+		
+	end 
+end
+
+
 
 function love.draw()
 	love.graphics.clear()
@@ -125,6 +156,7 @@ function love.draw()
 					love.graphics.setColor(255,255,0)
 				elseif color == 6 then
 					love.graphics.setColor(0,255,255)
+
 				end
 
 				love.graphics.draw(spr_ball,playfield.x+ x*32+(y%2)*16,playfield.y+ y*26)
@@ -134,4 +166,3 @@ function love.draw()
 	end
 	
 end
-
