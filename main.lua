@@ -36,7 +36,7 @@ function updatePlayfield()
 	for x=1,playfield.width do
 		for y=playfield.height,1,-1 do
 			 
-			if buffer[x][y] ~= 0 and playfield.height ~= y then
+			if playfield[x][y] ~= 0 and playfield.height ~= y then
 				local xPathRight = 0
 				local xPathLeft = 0
 				if y%2 == 0 then
@@ -45,9 +45,9 @@ function updatePlayfield()
 					xPathRight = 1
 				end
 
-				local canFallPathRight = x+xPathRight <= playfield.width  and buffer[x+xPathRight][y+1] == 0
-				local canFallPathLeft = x+xPathLeft ~= 0 and buffer[x+xPathLeft][y+1] == 0
-				local canFallPathDown = canFallPathRight and canFallPathLeft and y+1 ~= playfield.height and buffer[x][y+2] == 0
+				local canFallPathRight = x+xPathRight <= playfield.width  and playfield[x+xPathRight][y+1] == 0
+				local canFallPathLeft = x+xPathLeft ~= 0 and playfield[x+xPathLeft][y+1] == 0
+				local canFallPathDown = canFallPathRight and canFallPathLeft and y+1 ~= playfield.height and playfield[x][y+2] == 0
 
 				if canFallPathDown then
 					moveBall(x,y,x,y+2)
