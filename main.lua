@@ -1,19 +1,28 @@
 
 
-updateTime= 0.1
+updateTime = 0.1
 time = 0
+
+
+movingBalls = {}
+BALL_WIDTH = 32
+BALL_HEIGHT = 26
 
 function love.load()
 	spr_ball = love.graphics.newImage("Content/kula.png")
 	spr_playfield  = love.graphics.newImage("Content/playfield.png")
+	time = updateTime
 	CreatePlayfield()
+
+	movingBalls.amount = 0
 end
 
 function love.update(dt)
-	time = time + dt
-	if time > updateTime then
+	--time = updateTime
+	time = time - dt
+	if time < 0 then
 		updatePlayfield()
-		time = time -updateTime
+		time = time +updateTime
 	end
 end
 
@@ -32,7 +41,19 @@ function CreatePlayfield()
 end
 
 function updatePlayfield()
-	local buffer = createBuffer()
+	if movingBalls ~= nil then
+		local x,y 
+		for i=1, movingBalls.amount do
+			playfield[movingBalls[i].toX][movingBalls[i].toY] = movingBalls[i].col
+
+		--	lerp(ballXPos(b.fromX,b.fromY),ballXPos(b.toX,b.toY),1-t)
+		--	y = lerp(ballYPos(b.fromY),ballYP
+		end
+		movingBalls.amount = 0
+	end
+
+	local playfieldIsstatic = true
+	buffer = createBuffer()
 	for x=1,playfield.width do
 		for y=playfield.height,1,-1 do
 			 
@@ -45,21 +66,25 @@ function updatePlayfield()
 					xPathRight = 1
 				end
 
-				local canFallPathRight = x+xPathRight <= playfield.width  and playfield[x+xPathRight][y+1] == 0
-				local canFallPathLeft = x+xPathLeft ~= 0 and playfield[x+xPathLeft][y+1] == 0
-				local canFallPathDown = canFallPathRight and canFallPathLeft and y+1 ~= playfield.height and playfield[x][y+2] == 0
+				local canFallPathRight = x+xPathRight <= playfield.width  and buffer[x+xPathRight][y+1] == 0
+				local canFallPathLeft = x+xPathLeft ~= 0 and buffer[x+xPathLeft][y+1] == 0
+				local canFallPathDown = canFallPathRight and canFallPathLeft and y+1 ~= playfield.height and buffer[x][y+2] == 0
 
 				if canFallPathDown then
 					moveBall(x,y,x,y+2)
+					playfieldIsstatic= false
 				elseif canFallPathRight then
 					moveBall(x,y,x+xPathRight,y+1)
+					playfieldIsstatic= false
 				elseif canFallPathLeft then
 					moveBall(x,y,x+xPathLeft,y+1)
+					playfieldIsstatic= false
 				end
 			end
 		end
 	end
-	checkConnection()
+
+	if playfieldIsstatic then checkConnection() end
 end
 
 function createBuffer()
@@ -74,8 +99,60 @@ function createBuffer()
 end
 
 function moveBall(fromX,fromY,toX,toY)
-	playfield[toX][toY] = playfield[fromX][fromY] 
+	local a = movingBalls.amount+1
+	movingBalls[a] = {}
+	movingBalls[a].fromX = fromX
+	movingBalls[a].fromY = fromY
+	movingBalls[a].toX = toX
+	movingBalls[a].toY = toY
+	movingBalls[a].col = playfield[fromX][fromY]
+	movingBalls.amount = a
+
+	buffer[toX][toY] = buffer[fromX][fromY] 
+	buffer[fromX][fromY] = 0
 	playfield[fromX][fromY] = 0
+end
+
+function drawMovingBalls(t)
+	if movingBalls ~= nil then
+		local x,y 
+		for i=1, movingBalls.amount do
+			local b = movingBalls[i]
+			t = math.clamp(0,t,1)
+			
+			x = lerp(ballXPos(b.fromX,b.fromY),ballXPos(b.toX,b.toY),1-t)
+			
+			y = lerp(ballYPos(b.fromY),ballYPos(b.toY),1-t)
+			
+			drawBall(x,y,movingBalls[i].col)
+			
+		end
+	end
+end
+
+function ballXPos(x,y)
+	return playfield.x+ x*BALL_WIDTH+(y%2)*BALL_WIDTH/2
+end
+
+function ballYPos(y)
+	return playfield.y+ y*BALL_HEIGHT
+end
+
+function lerp(a,b,t) return (1-t)*a + t*b end
+
+function lerp2(a,b,t) return a+(b-a)*t end
+
+function cerp(a,b,t) local f=(1-math.cos(t*math.pi))*.5 return a*(1-f)+b*f end
+
+function math.clamp(low, n, high) return math.min(math.max(low, n), high) end
+
+function endMovement()
+	for ball in pairs(movingBalls) do
+		playfield[ball.toX][ball.toY] = ball.col
+
+		for k,v in pairs(ball) do ball[k]=nil end
+	end
+
 end
 
 function checkConnection()
@@ -94,8 +171,8 @@ function checkConnection()
 						-- NILL PROBLEM
 						destroyBall(connected[i].x,connected[i].y)
 					end
+				--	time = updateTime
 				end
-
 			end
 		end
 	end
@@ -122,6 +199,7 @@ function continueConnection(x,y,color)
 		end
 	end
 end
+
 function isInsideBounds(x,y)
 	return x ~= 0 and y ~= 0 and x <= playfield.width and y <= playfield.height
 end
@@ -133,7 +211,23 @@ function destroyBall(x,y)
 	end 
 end
 
+function drawBall(x,y,col)
+	if col == 1 then
+		love.graphics.setColor(255,0,0)
+	elseif col == 2 then
+		love.graphics.setColor(0,255,0)
+	elseif col == 3 then
+		love.graphics.setColor(0,150,255)
+	elseif col == 4 then
+		love.graphics.setColor(255,0,255)
+	elseif col == 5 then
+		love.graphics.setColor(255,255,0)
+	elseif col == 6 then
+		love.graphics.setColor(0,255,255)
+	end
+	love.graphics.draw(spr_ball,x,y)
 
+end
 
 function love.draw()
 	love.graphics.clear()
@@ -143,24 +237,13 @@ function love.draw()
 		for y=1,playfield.height do
 
 			if playfield[x][y] > 0 then
-				color = playfield[x][y] 
-				if color == 1 then
-					love.graphics.setColor(255,0,0)
-				elseif color == 2 then
-					love.graphics.setColor(0,255,0)
-				elseif color == 3 then
-					love.graphics.setColor(0,150,255)
-				elseif color == 4 then
-					love.graphics.setColor(255,0,255)
-				elseif color == 5 then
-					love.graphics.setColor(255,255,0)
-				elseif color == 6 then
-					love.graphics.setColor(0,255,255)
-
-				end
-
-				love.graphics.draw(spr_ball,playfield.x+ x*32+(y%2)*16,playfield.y+ y*26)
-
+				drawBall(ballXPos(x,y),
+					ballYPos(y),
+					playfield[x][y])
+			end
+			drawMovingBalls(time/updateTime)
+			if printpos ~= nil then
+				love.graphics.print(printpos,10,10)
 			end
 		end
 	end
