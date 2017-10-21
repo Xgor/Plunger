@@ -1,6 +1,7 @@
+--require "Content.level1"
+require "levelManager"
 
-
-TimePerUpdate = 0.09
+TimePerUpdate = 0.08
 updateTimer = 0
 
 chargedTime = 0
@@ -21,19 +22,48 @@ playfield.width = 7
 playfield.height = 16
 
 function getNextBall()
-	return 3
+	local colorsInLevel =0
+	local colors= {}
+	local newColor
+	for x=1,playfield.width do
+		for y=1,playfield.height do
+			if isInsideBounds(x,y) and playfield[x][y] > 0 then
+				if colorsInLevel> 0 then
+					newColor = true
+					for i=1,colorsInLevel do
+						if colors[i] == playfield[x][y] then 
+							newColor =false
+						end				
+					end
+					if newColor then
+						colorsInLevel=colorsInLevel+1
+						colors[colorsInLevel] = playfield[x][y]
+					end
+				else
+					colorsInLevel=1
+					colors[colors] = playfield[x][y]
+				end
+			end
+		end
+	end
+
+	if colorsInLevel> 0 then
+		return colors[math.random(1,colorsInLevel)]
+	else
+		return 0
+	end
 end
 
-function DrawFirePath()
+function DrawFirePath(value)
 	for i=0,20 do
-		DrawFirePathDot(i)
+		DrawFirePathDot(i+value)
 	end
 end
 
 function DrawFirePathDot(value)
 	local x = (playfield.width-0.5)*BALL_WIDTH*(chargedTime/maxChargeTime)
 	x = x +playfield.x+BALL_WIDTH*1.5
-	love.graphics.circle("fill",x,value*BALL_HEIGHT,4)
+	love.graphics.circle("line",x,value*BALL_HEIGHT,4)
 end
 
 function love.load()
@@ -51,21 +81,21 @@ function love.update(dt)
 		chargedTime = math.clamp(0,chargedTime+dt,maxChargeTime)
 
 	elseif chargedTime> 0 then
-		local fallPos = chargedTime/maxChargeTime
-		printPos = math.round(chargedTime/maxChargeTime *(playfield.width-1)*2)+2
-		printPos = printPos/2
 
-		if printPos%1 ~= 0 then
-			playfield[math.floor(printPos)][2] =currentBall
+		local fallPos = math.floor(chargedTime/maxChargeTime *(playfield.width-0.5)*2)+2
+		fallPos = fallPos/2
+
+		if fallPos%1 ~= 0 then
+			playfield[math.floor(fallPos)][1] =currentBall
 		else
-			playfield[math.floor(printPos)][1] =currentBall
+			playfield[math.floor(fallPos)][2] =currentBall
 		end
 
-		currentBall = nextBall
-		nextBall =getNextBall()
-		--7.5
 		chargedTime = 0
+		currentBall = nextBall
+		nextBall = getNextBall()
 	end
+
 	updateTimer = updateTimer - dt
 	if updateTimer < 0 then
 		updatePlayfield()
@@ -77,7 +107,7 @@ function love.draw()
 	love.graphics.clear()
 	love.graphics.setColor(255,255,255)
 	love.graphics.draw(spr_playfield,playfield.x,playfield.y)
-	DrawFirePath()
+	DrawFirePath((love.timer.getTime()*4)%1)
 
 	for x=1,playfield.width do
 		for y=1,playfield.height do
@@ -96,19 +126,31 @@ function love.draw()
 			drawBall(344,200+chargedTime/maxChargeTime * 300,currentBall)
 		end
 	end
-
-
 end
 
 
 
 function CreatePlayfield()
-	for x=1,playfield.width do
-		playfield[x] = {}
-		for y=1,playfield.height do
-			playfield[x][y] = love.math.random(7)-1
-		end
-	end
+--	playfield = level1.level
+	playfield = { 
+			{0,0,0,0,0,0,0,0,0,0,0,0,1,3,4,4},
+			{0,0,0,0,0,0,0,0,0,0,0,0,1,3,1,3},
+			{0,0,0,0,0,0,0,0,0,0,0,0,4,2,1,3},
+			{0,0,0,0,0,0,0,0,0,0,0,0,4,2,4,2},
+			{0,0,0,0,0,0,0,0,0,0,0,0,3,1,4,2},
+			{0,0,0,0,0,0,0,0,0,0,0,0,3,1,3,1},
+			{0,0,0,0,0,0,0,0,0,0,0,0,2,2,3,1}
+			}
+	playfield.x = 400
+	playfield.y = 100
+	playfield.width = 7
+	playfield.height = 16
+--	for x=1,playfield.width do
+--		playfield[x] = {}
+--		for y=1,playfield.height do
+--			playfield[x][y] = love.math.random(7)-1
+--		end
+--	end
 end
 
 function updatePlayfield()
@@ -144,17 +186,19 @@ function updatePlayfield()
 					xPathRight = 1
 				end
 
-				local canFallPathRight = x+xPathRight <= playfield.width  and buffer[x+xPathRight][y+1] == 0
-				local canFallPathLeft = x+xPathLeft ~= 0 and buffer[x+xPathLeft][y+1] == 0
-				local canFallPathDown = canFallPathRight and canFallPathLeft and y+1 ~= playfield.height and buffer[x][y+2] == 0
+				local canFallRight = x+xPathRight <= playfield.width  and buffer[x+xPathRight][y+1] == 0
+				local canFallLeft = x+xPathLeft ~= 0 and buffer[x+xPathLeft][y+1] == 0
+				
+				local canFallDown = (canFallLeft or x == 1) and (canFallRight or playfield.width)
+				canFallDown = canFallDown and y+1 ~= playfield.height and buffer[x][y+2] == 0
 
-				if canFallPathDown then
+				if canFallDown then
 					moveBall(x,y,x,y+2)
 					playfieldIsstatic= false
-				elseif canFallPathRight then
+				elseif canFallRight then
 					moveBall(x,y,x+xPathRight,y+1)
 					playfieldIsstatic= false
-				elseif canFallPathLeft then
+				elseif canFallLeft then
 					moveBall(x,y,x+xPathLeft,y+1)
 					playfieldIsstatic= false
 				end
@@ -321,4 +365,3 @@ function drawBall(x,y,col)
 	love.graphics.draw(spr_ball,x,y)
 
 end
-
