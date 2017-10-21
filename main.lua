@@ -1,37 +1,108 @@
 
 
-updateTime = 0.1
-time = 0
+TimePerUpdate = 0.09
+updateTimer = 0
 
+chargedTime = 0
+maxChargeTime = 1.5
 
+currentBall = 2
+nextBall = 3
+
+ballDestroyQueue = {}
 movingBalls = {}
 BALL_WIDTH = 32
 BALL_HEIGHT = 26
 
-function love.load()
-	spr_ball = love.graphics.newImage("Content/kula.png")
-	spr_playfield  = love.graphics.newImage("Content/playfield.png")
-	time = updateTime
-	CreatePlayfield()
+playfield = {}
+playfield.x = 400
+playfield.y = 100
+playfield.width = 7
+playfield.height = 16
 
-	movingBalls.amount = 0
+function getNextBall()
+	return 3
 end
 
-function love.update(dt)
-	--time = updateTime
-	time = time - dt
-	if time < 0 then
-		updatePlayfield()
-		time = time +updateTime
+function DrawFirePath()
+	for i=0,20 do
+		DrawFirePathDot(i)
 	end
 end
 
+function DrawFirePathDot(value)
+	local x = (playfield.width-0.5)*BALL_WIDTH*(chargedTime/maxChargeTime)
+	x = x +playfield.x+BALL_WIDTH*1.5
+	love.graphics.circle("fill",x,value*BALL_HEIGHT,4)
+end
+
+function love.load()
+	spr_ball = love.graphics.newImage("Content/kula.png")
+	spr_playfield  = love.graphics.newImage("Content/playfield.png")
+	updateTimer = TimePerUpdate
+	CreatePlayfield()
+
+	movingBalls.amount = 0
+	ballDestroyQueue.amount = 0
+end
+
+function love.update(dt)
+	if(love.mouse.isDown(1)) then
+		chargedTime = math.clamp(0,chargedTime+dt,maxChargeTime)
+
+	elseif chargedTime> 0 then
+		local fallPos = chargedTime/maxChargeTime
+		printPos = math.round(chargedTime/maxChargeTime *(playfield.width-1)*2)+2
+		printPos = printPos/2
+
+		if printPos%1 ~= 0 then
+			playfield[math.floor(printPos)][2] =currentBall
+		else
+			playfield[math.floor(printPos)][1] =currentBall
+		end
+
+		currentBall = nextBall
+		nextBall =getNextBall()
+		--7.5
+		chargedTime = 0
+	end
+	updateTimer = updateTimer - dt
+	if updateTimer < 0 then
+		updatePlayfield()
+		updateTimer = updateTimer +TimePerUpdate
+	end
+end
+
+function love.draw()
+	love.graphics.clear()
+	love.graphics.setColor(255,255,255)
+	love.graphics.draw(spr_playfield,playfield.x,playfield.y)
+	DrawFirePath()
+
+	for x=1,playfield.width do
+		for y=1,playfield.height do
+
+			if playfield[x][y] ~= 0 then
+				drawBall(ballXPos(x,y),
+					ballYPos(y),
+					playfield[x][y])
+			end
+			drawMovingBalls(updateTimer/TimePerUpdate)
+			if printPos ~= nil then
+				love.graphics.setColor(255,255,255)
+				love.graphics.print(printPos,10,10)
+			end
+
+			drawBall(344,200+chargedTime/maxChargeTime * 300,currentBall)
+		end
+	end
+
+
+end
+
+
+
 function CreatePlayfield()
-	playfield = {}
-	playfield.x = 400
-	playfield.y = 100
-	playfield.width = 7
-	playfield.height = 16
 	for x=1,playfield.width do
 		playfield[x] = {}
 		for y=1,playfield.height do
@@ -41,6 +112,13 @@ function CreatePlayfield()
 end
 
 function updatePlayfield()
+	if ballDestroyQueue.amount>0 then
+		destroyBall(ballDestroyQueue[ballDestroyQueue.amount].x,ballDestroyQueue[ballDestroyQueue.amount].y)
+		ballDestroyQueue.amount = ballDestroyQueue.amount-1
+--			ballDestroyQueue[ballDestroyQueue.amount].x,ballDestroyQueue[ballDestroyQueue.amount].y
+		return 0
+	end
+
 	if movingBalls ~= nil then
 		local x,y 
 		for i=1, movingBalls.amount do
@@ -85,6 +163,7 @@ function updatePlayfield()
 	end
 
 	if playfieldIsstatic then checkConnection() end
+	return 1
 end
 
 function createBuffer()
@@ -99,14 +178,14 @@ function createBuffer()
 end
 
 function moveBall(fromX,fromY,toX,toY)
-	local a = movingBalls.amount+1
-	movingBalls[a] = {}
-	movingBalls[a].fromX = fromX
-	movingBalls[a].fromY = fromY
-	movingBalls[a].toX = toX
-	movingBalls[a].toY = toY
-	movingBalls[a].col = playfield[fromX][fromY]
-	movingBalls.amount = a
+	local i = movingBalls.amount+1
+	if movingBalls[i] == nil then movingBalls[i] = {} end
+	movingBalls[i].fromX = fromX
+	movingBalls[i].fromY = fromY
+	movingBalls[i].toX = toX
+	movingBalls[i].toY = toY
+	movingBalls[i].col = playfield[fromX][fromY]
+	movingBalls.amount = i
 
 	buffer[toX][toY] = buffer[fromX][fromY] 
 	buffer[fromX][fromY] = 0
@@ -146,13 +225,14 @@ function cerp(a,b,t) local f=(1-math.cos(t*math.pi))*.5 return a*(1-f)+b*f end
 
 function math.clamp(low, n, high) return math.min(math.max(low, n), high) end
 
+function math.round(n, deci) deci = 10^(deci or 0) return math.floor(n*deci+.5)/deci end
+
 function endMovement()
 	for ball in pairs(movingBalls) do
 		playfield[ball.toX][ball.toY] = ball.col
 
 		for k,v in pairs(ball) do ball[k]=nil end
 	end
-
 end
 
 function checkConnection()
@@ -169,7 +249,7 @@ function checkConnection()
 				if connectionSize > 2 then
 					for i=1,connectionSize do
 						-- NILL PROBLEM
-						destroyBall(connected[i].x,connected[i].y)
+						queueBallDestruction(connected[i].x,connected[i].y)
 					end
 				--	time = updateTime
 				end
@@ -204,6 +284,17 @@ function isInsideBounds(x,y)
 	return x ~= 0 and y ~= 0 and x <= playfield.width and y <= playfield.height
 end
 
+function queueBallDestruction(x,y)
+	if isInsideBounds(x,y) then
+		local i = ballDestroyQueue.amount+1
+		if ballDestroyQueue[i] == nil then ballDestroyQueue[i] = {} end
+		ballDestroyQueue[i].x = x
+		ballDestroyQueue[i].y = y
+		ballDestroyQueue.amount = i
+		playfield[x][y] = -1
+	end
+end
+
 function destroyBall(x,y)
 	if isInsideBounds(x,y) then
 		playfield[x][y] = 0
@@ -224,28 +315,10 @@ function drawBall(x,y,col)
 		love.graphics.setColor(255,255,0)
 	elseif col == 6 then
 		love.graphics.setColor(0,255,255)
+	elseif col == -1 then
+		love.graphics.setColor(255,255,255)
 	end
 	love.graphics.draw(spr_ball,x,y)
 
 end
 
-function love.draw()
-	love.graphics.clear()
-	love.graphics.setColor(255,255,255)
-	love.graphics.draw(spr_playfield,playfield.x,playfield.y)
-	for x=1,playfield.width do
-		for y=1,playfield.height do
-
-			if playfield[x][y] > 0 then
-				drawBall(ballXPos(x,y),
-					ballYPos(y),
-					playfield[x][y])
-			end
-			drawMovingBalls(time/updateTime)
-			if printpos ~= nil then
-				love.graphics.print(printpos,10,10)
-			end
-		end
-	end
-	
-end
